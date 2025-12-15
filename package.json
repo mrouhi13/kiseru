@@ -1,6 +1,7 @@
 {
   "type": "module",
   "scripts": {
+    "build": "esbuild scripts/content.ts --bundle --outfile=dist/content.js --platform=browser --target=es2020",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
@@ -9,6 +10,8 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.49.0",
     "@typescript-eslint/parser": "^8.49.0",
+    "chrome-types": "^0.1.396",
+    "esbuild": "^0.27.1",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.7.4"

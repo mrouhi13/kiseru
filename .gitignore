@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Builds
+dist/
+
 # OS junk
 .DS_Store
 Thumbs.db
@@ -10,3 +13,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Cache
+.prettiercache/
+

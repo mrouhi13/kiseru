@@ -5,18 +5,23 @@ import prettier from 'eslint-config-prettier';
 
 export default [
   {
-    ignores: ['node_modules/'],
+    ignores: ['node_modules/', 'dist/', 'build.js'],
   },
-
   js.configs.recommended,
-
   {
     files: ['**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
+        project: './tsconfig.json',
         ecmaVersion: 2022,
         sourceType: 'module',
+      },
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        location: 'readonly',
       },
     },
     plugins: {
@@ -25,13 +30,10 @@ export default [
     rules: {
       ...tseslint.configs.recommended.rules,
 
-      '@typescript-eslint/no-unused-vars': ['error', {argsIgnorePattern: '^_'}],
-      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
-
-  // Prettier disables formatting rules
   prettier,
 ];

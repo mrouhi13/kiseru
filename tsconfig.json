@@ -8,6 +8,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
+    "outDir": "dist",
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
     "noUncheckedIndexedAccess": true,
@@ -15,10 +16,13 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "types": [
-      "chrome"
+      "chrome-types"
     ]
   },
-  "include": [],
+  "include": [
+    "scripts",
+    "types"
+  ],
   "exclude": [
     "node_modules"
   ]
