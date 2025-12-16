@@ -1,29 +1,19 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": [
-      "ES2022",
-      "DOM"
-    ],
+    "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "strict": true,
     "outDir": "dist",
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
     "noUncheckedIndexedAccess": true,
     "useUnknownInCatchVariables": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "types": [
-      "chrome-types"
-    ]
+    "types": ["chrome-types"]
   },
-  "include": [
-    "scripts",
-    "types"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["scripts", "types"],
+  "exclude": ["node_modules", "dist"]
 }

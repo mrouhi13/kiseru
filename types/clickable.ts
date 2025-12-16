@@ -1,4 +1,4 @@
 export interface ClickableElement {
-  element: HTMLElement;
-  rect: DOMRect;
+  element: HTMLElement
+  rect: DOMRect
 }
