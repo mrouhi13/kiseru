@@ -1,85 +1,101 @@
 import { detectClickables } from './detector'
-import { clearOverlays, renderOverlays } from './overlay'
+import {
+  clearOverlays,
+  getOverlayRoot,
+  hideOverlays,
+  renderOverlays,
+  showOverlays,
+} from './overlay'
 
 let lastUrl = location.href
 let updateTimeout: number | null = null
+let scrollTimeout: number | null = null
+let isOverlayUpdating = false
 
-/**
- * Debounced update to prevent infinite loops
- */
-function debouncedUpdate() {
+function debouncedUpdate(): void {
   if (updateTimeout) clearTimeout(updateTimeout)
-  updateTimeout = window.setTimeout(() => {
-    updateOverlays()
-  }, 100)
+  updateTimeout = window.setTimeout(updateOverlays, 80)
 }
 
-/**
- * Update overlays based on current DOM
- */
 function updateOverlays(): void {
+  isOverlayUpdating = true
   const clickables = detectClickables()
+  clearOverlays()
   renderOverlays(clickables)
-}
-
-/**
- * Handle SPA URL changes
- */
-function onUrlChange(): void {
-  if (location.href !== lastUrl) {
-    lastUrl = location.href
-    clearOverlays()
-    debouncedUpdate()
-  }
+  requestAnimationFrame(() => (isOverlayUpdating = false))
 }
 
 // Initial render
 updateOverlays()
 
-// ------------------------------
-// MutationObserver for dynamic DOM changes
-// ------------------------------
-const observer = new MutationObserver((mutations) => {
-  const root = document.getElementById('k-overlay-root')
-  if (!root) return
+function handleScroll() {
+  hideOverlays()
 
-  // Ignore mutations inside overlay root to prevent infinite loop
-  if (
-    mutations.some((m) =>
-      Array.from(m.addedNodes).some((n) => root.contains(n)),
-    )
-  ) {
+  if (scrollTimeout) clearTimeout(scrollTimeout)
+
+  scrollTimeout = window.setTimeout(() => {
+    updateOverlays()
+    requestAnimationFrame(showOverlays)
+  }, 150)
+}
+
+function attachScrollListeners() {
+  // Always attach to window + document
+  window.addEventListener('scroll', handleScroll, { passive: true })
+  document.addEventListener('scroll', handleScroll, { passive: true })
+
+  document.querySelectorAll<HTMLElement>('*').forEach((el) => {
+    const style = window.getComputedStyle(el)
+    const scrollable =
+      /(auto|scroll)/.test(style.overflow) ||
+      /(auto|scroll)/.test(style.overflowY)
+
+    if (scrollable) {
+      el.addEventListener('scroll', handleScroll, { passive: true })
+    }
+  })
+}
+
+// Attach listeners AFTER page loads
+setTimeout(attachScrollListeners, 300)
+
+const observer = new MutationObserver((mutations) => {
+  if (isOverlayUpdating) return
+
+  const root = getOverlayRoot()
+
+  for (const m of mutations) {
+    if (m.target === root || root.contains(m.target)) continue
+    if (!m.addedNodes.length && !m.removedNodes.length) continue
+    debouncedUpdate()
     return
   }
-
-  debouncedUpdate()
 })
+
 observer.observe(document.body, { childList: true, subtree: true })
 
-// ------------------------------
-// Update overlays on scroll and resize (debounced)
-// ------------------------------
-window.addEventListener('scroll', debouncedUpdate, { passive: true })
-window.addEventListener('resize', debouncedUpdate)
+function onUrlChange(): void {
+  if (location.href !== lastUrl) {
+    lastUrl = location.href
+    debouncedUpdate()
+    setTimeout(attachScrollListeners, 300) // reattach for new pages/components
+  }
+}
 
-// ------------------------------
-// SPA URL-change detection (debounced)
-// ------------------------------
 setInterval(onUrlChange, 500)
 
-// Monkey-patch pushState/replaceState
 const originalPushState = history.pushState
 history.pushState = function (...args) {
-  const result = originalPushState.apply(this, args)
+  const r = originalPushState.apply(this, args)
   onUrlChange()
-  return result
+  return r
 }
 
 const originalReplaceState = history.replaceState
 history.replaceState = function (...args) {
-  const result = originalReplaceState.apply(this, args)
+  const r = originalReplaceState.apply(this, args)
   onUrlChange()
-  return result
+  return r
 }
 
 window.addEventListener('popstate', onUrlChange)

@@ -1,23 +1,23 @@
+#k-overlay-root {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+#k-overlay-root.k-overlay-hidden {
+  opacity: 0 !important;
+}
+
 .k-overlay {
-  position: absolute;
+  position: fixed;
   box-sizing: border-box;
   border: 2px dashed red;
   border-radius: 4px;
   background-color: rgba(128, 128, 128, 0.2);
   pointer-events: none;
-  z-index: 2147483647;
-  transition: opacity 0.3s ease;
-}
-
-.k-overlay .k-hint-badge {
-  position: absolute;
-  top: 0;
-  left: 0;
-  background-color: red;
-  color: white;
-  font-size: 12px;
-  font-weight: bold;
-  padding: 2px 4px;
-  pointer-events: none;
-  z-index: 10000;
 }

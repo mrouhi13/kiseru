@@ -11,16 +11,22 @@ const SELECTORS = [
 
 function isVisible(el: HTMLElement): boolean {
   const style = window.getComputedStyle(el)
-  return (
-    style.display !== 'none' &&
-    style.visibility !== 'hidden' &&
-    el.offsetWidth > 0 &&
-    el.offsetHeight > 0
+
+  if (
+    style.display === 'none' ||
+    style.visibility === 'hidden' ||
+    style.opacity === '0' ||
+    style.pointerEvents === 'none'
   )
+    return false
+
+  if (!el.offsetParent) return false
+
+  return el.offsetWidth > 0 && el.offsetHeight > 0
 }
 
 function isDisabled(el: HTMLElement): boolean {
-  return (el as HTMLButtonElement).disabled
+  return el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true'
 }
 
 export function detectClickables(
@@ -35,6 +41,6 @@ export function detectClickables(
     .filter((el) => !isDisabled(el))
     .map((el) => ({
       element: el,
-      rect: el.getBoundingClientRect(),
+      rect: el.getBoundingClientRect(), // viewport coordinates
     }))
 }
