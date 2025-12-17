@@ -4,12 +4,53 @@ import { assignHints } from './hints'
 
 const UPDATE_DELAY = 120
 
+enum Mode {
+  NORMAL = 'normal',
+  NAV = 'nav',
+}
+
+let mode: Mode = Mode.NORMAL
+let hintMode = false
+let currentHint = ''
+let hintMap: Map<string, HTMLElement> = new Map()
+
 let lastUrl = location.href
 let updateTimeout: number | null = null
 let scrollTimeout: number | null = null
 let isOverlayUpdating = false
 let mutationPending = false
 let scrollListenersAttached = false
+let scrollableElements: HTMLElement[] = []
+
+function enableNavMode() {
+  if (mode === Mode.NAV) return
+  mode = Mode.NAV
+
+  scrollListenersAttached = false
+  attachScrollListeners()
+  observer.observe(document.body, { childList: true, subtree: true })
+
+  requestAnimationFrame(() => {
+    updateOverlays()
+    showOverlays()
+  })
+}
+
+function disableNavMode() {
+  if (mode === Mode.NORMAL) return
+  mode = Mode.NORMAL
+
+  detachScrollListeners()
+  observer.disconnect()
+
+  if (scrollTimeout) clearTimeout(scrollTimeout)
+  if (updateTimeout) clearTimeout(updateTimeout)
+
+  mutationPending = false
+  isOverlayUpdating = false
+
+  hideOverlays()
+}
 
 function debouncedUpdate(): void {
   if (updateTimeout) clearTimeout(updateTimeout)
@@ -17,22 +58,31 @@ function debouncedUpdate(): void {
 }
 
 function updateOverlays(): void {
+  if (mode === Mode.NORMAL) return
+
   isOverlayUpdating = true
   const clickables = assignHints(detectClickables())
+
+  hintMap.clear()
+  for (const c of clickables) hintMap.set(c.hint, c.element)
 
   renderOverlays(clickables)
   requestAnimationFrame(() => (isOverlayUpdating = false))
 }
 
-// Initial render
+// Initial render (no overlays shown until Nav Mode is ON)
 updateOverlays()
 
 function handleScroll() {
+  if (mode === Mode.NORMAL) return
+
   hideOverlays()
 
   if (scrollTimeout) clearTimeout(scrollTimeout)
 
   scrollTimeout = window.setTimeout(() => {
+    if (mode === Mode.NORMAL) return
+
     const clickables = assignHints(
       detectClickables().filter((c) => {
         const top = c.rect.top
@@ -41,18 +91,22 @@ function handleScroll() {
       }),
     )
 
+    hintMap.clear()
+    for (const c of clickables) hintMap.set(c.hint, c.element)
+
     renderOverlays(clickables)
     requestAnimationFrame(showOverlays)
   }, UPDATE_DELAY)
 }
 
-// Attach listeners only to real scrollable elements
 function attachScrollListeners() {
   if (scrollListenersAttached) return
   scrollListenersAttached = true
 
   window.addEventListener('scroll', handleScroll, { passive: true })
   document.addEventListener('scroll', handleScroll, { passive: true })
+
+  scrollableElements = []
 
   const candidates = document.querySelectorAll<HTMLElement>(
     'div, main, section, [style*="overflow"], [style*="scroll"]',
@@ -65,15 +119,30 @@ function attachScrollListeners() {
       /(auto|scroll)/.test(style.overflowY)
     ) {
       el.addEventListener('scroll', handleScroll, { passive: true })
+      scrollableElements.push(el)
     }
   })
 }
 
-// Attach listeners AFTER page loads
+// NEW: detach scroll listeners when NAV mode is off
+function detachScrollListeners() {
+  window.removeEventListener('scroll', handleScroll)
+  document.removeEventListener('scroll', handleScroll)
+
+  for (const el of scrollableElements) {
+    el.removeEventListener('scroll', handleScroll)
+  }
+
+  scrollListenersAttached = false
+  scrollableElements = []
+}
+
+// Attach listeners after page loads (only matters once)
 setTimeout(attachScrollListeners, UPDATE_DELAY)
 
 // MutationObserver (throttled)
 const observer = new MutationObserver((mutations) => {
+  if (mode === Mode.NORMAL) return
   if (isOverlayUpdating || mutationPending) return
 
   const root = document.getElementById('k-overlay-root')
@@ -96,6 +165,9 @@ observer.observe(document.body, { childList: true, subtree: true })
 function onUrlChange() {
   if (location.href !== lastUrl) {
     lastUrl = location.href
+
+    if (mode === Mode.NORMAL) return
+
     debouncedUpdate()
     scrollListenersAttached = false
     setTimeout(attachScrollListeners, UPDATE_DELAY) // reattach for new pages/components
@@ -117,3 +189,23 @@ history.replaceState = function (...args) {
 }
 
 window.addEventListener('popstate', onUrlChange)
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Alt') {
+    e.preventDefault()
+    if (mode === Mode.NORMAL) enableNavMode()
+    else disableNavMode()
+  }
+
+  // Block page keybindings in Nav Mode
+  if (mode === Mode.NAV) {
+    e.stopImmediatePropagation()
+  }
+})
+
+window.addEventListener('focusin', (e) => {
+  if (mode === Mode.NAV) {
+    e.stopImmediatePropagation()
+    e.preventDefault()
+  }
+}, true)
