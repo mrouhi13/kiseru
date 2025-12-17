@@ -25,13 +25,15 @@ export function clearOverlays(): void {
   getOverlayRoot().innerHTML = ''
 }
 
-export function renderOverlays(items: ClickableElement[]): void {
+export function renderOverlays(
+  items: Array<ClickableElement & { hint: string }>,
+): void {
   const root = getOverlayRoot()
   clearOverlays()
 
   const fragment = document.createDocumentFragment()
 
-  for (const { rect } of items) {
+  for (const { rect, hint } of items) {
     const overlay = document.createElement('div')
     overlay.className = 'k-overlay'
     overlay.style.position = 'fixed'
@@ -39,6 +41,12 @@ export function renderOverlays(items: ClickableElement[]): void {
     overlay.style.left = `${rect.left}px`
     overlay.style.width = `${rect.width}px`
     overlay.style.height = `${rect.height}px`
+
+    const badge = document.createElement('div')
+    badge.className = 'k-hint-badge'
+    badge.textContent = hint
+
+    overlay.appendChild(badge)
     fragment.appendChild(overlay)
   }
 

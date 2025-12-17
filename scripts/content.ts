@@ -1,5 +1,6 @@
 import { detectClickables } from './detector'
 import { hideOverlays, renderOverlays, showOverlays } from './overlay'
+import { assignHints } from './hints'
 
 const UPDATE_DELAY = 120
 
@@ -17,7 +18,7 @@ function debouncedUpdate(): void {
 
 function updateOverlays(): void {
   isOverlayUpdating = true
-  const clickables = detectClickables()
+  const clickables = assignHints(detectClickables())
 
   renderOverlays(clickables)
   requestAnimationFrame(() => (isOverlayUpdating = false))
@@ -32,11 +33,13 @@ function handleScroll() {
   if (scrollTimeout) clearTimeout(scrollTimeout)
 
   scrollTimeout = window.setTimeout(() => {
-    const clickables = detectClickables().filter((c) => {
-      const top = c.rect.top
-      const bottom = c.rect.bottom
-      return bottom >= 0 && top <= window.innerHeight
-    })
+    const clickables = assignHints(
+      detectClickables().filter((c) => {
+        const top = c.rect.top
+        const bottom = c.rect.bottom
+        return bottom >= 0 && top <= window.innerHeight
+      }),
+    )
 
     renderOverlays(clickables)
     requestAnimationFrame(showOverlays)
