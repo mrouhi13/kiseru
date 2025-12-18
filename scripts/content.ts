@@ -237,8 +237,27 @@ window.addEventListener('keydown', (e) => {
   // Match?
   const el = hintMap.get(currentTypedHint)
   if (el) {
+    const href =
+      el instanceof HTMLAnchorElement ? el.href : el.getAttribute('href')
+
+    const ctrl = e.ctrlKey || e.metaKey
+
     currentTypedHint = ''
-    simulateClick(el)
+
+    if (ctrl) {
+      // Open in new tab
+      if (href) {
+        window.open(href, '_blank')
+      } else {
+        // fallback: GitHub/GitLab clickable divs often use data-href
+        const dataHref = el.getAttribute('data-href')
+        if (dataHref) window.open(dataHref, '_blank')
+      }
+    } else {
+      // Normal click
+      simulateClick(el)
+    }
+
     return
   }
 
