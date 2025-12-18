@@ -11,10 +11,9 @@ enum Mode {
 
 let mode: Mode = Mode.NAV
 let hintMode = false
-let currentHint = ''
+let currentTypedHint = ''
 let hintMap: Map<string, HTMLElement> = new Map()
 
-let currentTypedHint = ''
 let lastUrl = location.href
 let updateTimeout: number | null = null
 let scrollTimeout: number | null = null
@@ -194,6 +193,20 @@ function simulateClick(el: HTMLElement) {
   }
 }
 
+function enterHintMode() {
+  if (!hintMode) {
+    hintMode = true
+    currentTypedHint = ''
+  }
+}
+
+function exitHintMode() {
+  if (hintMode) {
+    hintMode = false
+    currentTypedHint = ''
+  }
+}
+
 const originalPushState = history.pushState
 history.pushState = function (...args) {
   const r = originalPushState.apply(this, args)
@@ -228,46 +241,53 @@ window.addEventListener('keydown', (e) => {
   e.stopImmediatePropagation()
   e.preventDefault()
 
-  // Accept only a–z as hint characters
-  if (!/^[a-z]$/.test(key)) return
+  // Enter Hint Mode
+  if (key === 'f') {
+    enterHintMode()
+    return
+  }
 
+  // Escape exits Hint Mode
+  if (key === 'escape') {
+    exitHintMode()
+    return
+  }
+
+  // If not in Hint Mode → ignore typing
+  if (!hintMode) return
+
+  // Accept only A–Z for hint typing
+  if (!/^[a-z]$/.test(key)) return
   // Build typed hint
   currentTypedHint += key
 
   // Match?
   const el = hintMap.get(currentTypedHint)
   if (el) {
-    const href =
-      el instanceof HTMLAnchorElement ? el.href : el.getAttribute('href')
+    const href = el instanceof HTMLAnchorElement ? el.href : el.getAttribute('href')
 
     const ctrl = e.ctrlKey || e.metaKey
 
     currentTypedHint = ''
 
     if (ctrl) {
-      // Open in new tab
-      if (href) {
-        window.open(href, '_blank')
-      } else {
-        // fallback: GitHub/GitLab clickable divs often use data-href
+      if (href) window.open(href, '_blank')
+      else {
         const dataHref = el.getAttribute('data-href')
         if (dataHref) window.open(dataHref, '_blank')
       }
     } else {
-      // Normal click
       simulateClick(el)
     }
 
     return
   }
 
-  // If no hint starts with this prefix, reset
   const hasPrefix = Array.from(hintMap.keys()).some((h) =>
     h.startsWith(currentTypedHint),
   )
-  if (!hasPrefix) {
-    currentTypedHint = ''
-  }
+
+  if (!hasPrefix) currentTypedHint = ''
 })
 
 window.addEventListener('focusin', (e) => {
