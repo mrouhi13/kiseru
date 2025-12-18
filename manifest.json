@@ -4,6 +4,11 @@
   "homepage_url": "https://github.com/mrouhi13/kiseru",
   "version": "1.0",
   "manifest_version": 3,
+  "permissions": ["tabs", "sessions", "history"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "scripts/background.js"
+  },
   "content_scripts": [
     {
       "js": ["dist/content.js"],

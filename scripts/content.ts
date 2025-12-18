@@ -253,19 +253,60 @@ window.addEventListener('keydown', (e) => {
     return
   }
 
-  // If not in Hint Mode → ignore typing
+  // 🔥 NAV MODE KEYBINDINGS (ONLY WHEN NOT IN HINT MODE)
+  if (mode === Mode.NAV && !hintMode) {
+    switch (key) {
+      case ' ':
+        if (e.shiftKey) {
+          window.scrollBy({
+            top: -window.innerHeight * 0.8,
+            behavior: 'smooth',
+          })
+          return
+        }
+        // Smooth scroll UP (Shift + Space)
+        window.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' })
+        return
+      case 'h':
+        sendBackground('GO_HOME')
+        return
+      case 't':
+        sendBackground('NEW_TAB')
+        return
+      case 'q':
+        if (e.shiftKey) sendBackground('UNDO_CLOSE_TAB')
+        else sendBackground('CLOSE_TAB')
+        return
+      case '<':
+        sendBackground('GO_BACK')
+        return
+      case '>':
+        sendBackground('GO_FORWARD')
+        return
+      case 'r':
+        sendBackground('RELOAD_TAB')
+        return
+      case '[':
+        sendBackground('PREV_TAB')
+        return
+      case ']':
+        sendBackground('NEXT_TAB')
+        return
+    }
+  }
+
+  // 🔥 HINT TYPING ONLY WHEN hintMode ACTIVE
   if (!hintMode) return
 
   // Accept only A–Z for hint typing
   if (!/^[a-z]$/.test(key)) return
-  // Build typed hint
+
   currentTypedHint += key
 
-  // Match?
   const el = hintMap.get(currentTypedHint)
   if (el) {
-    const href = el instanceof HTMLAnchorElement ? el.href : el.getAttribute('href')
-
+    const href =
+      el instanceof HTMLAnchorElement ? el.href : el.getAttribute('href')
     const ctrl = e.ctrlKey || e.metaKey
 
     currentTypedHint = ''
@@ -286,13 +327,20 @@ window.addEventListener('keydown', (e) => {
   const hasPrefix = Array.from(hintMap.keys()).some((h) =>
     h.startsWith(currentTypedHint),
   )
-
   if (!hasPrefix) currentTypedHint = ''
 })
 
-window.addEventListener('focusin', (e) => {
-  if (mode === Mode.NAV) {
-    e.stopImmediatePropagation()
-    e.preventDefault()
-  }
-}, true)
+window.addEventListener(
+  'focusin',
+  (e) => {
+    if (mode === Mode.NAV) {
+      e.stopImmediatePropagation()
+      e.preventDefault()
+    }
+  },
+  true,
+)
+
+function sendBackground(type: string) {
+  chrome.runtime.sendMessage({ type })
+}
