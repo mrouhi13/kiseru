@@ -9,11 +9,12 @@ enum Mode {
   NAV = 'nav',
 }
 
-let mode: Mode = Mode.NORMAL
+let mode: Mode = Mode.NAV
 let hintMode = false
 let currentHint = ''
 let hintMap: Map<string, HTMLElement> = new Map()
 
+let currentTypedHint = ''
 let lastUrl = location.href
 let updateTimeout: number | null = null
 let scrollTimeout: number | null = null
@@ -174,6 +175,25 @@ function onUrlChange() {
   }
 }
 
+function simulateClick(el: HTMLElement) {
+  el.focus()
+  const rect = el.getBoundingClientRect()
+  const x = rect.left + rect.width / 2
+  const y = rect.top + rect.height / 2
+
+  for (const type of ['mousedown', 'mouseup', 'click']) {
+    el.dispatchEvent(
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+        view: window,
+      }),
+    )
+  }
+}
+
 const originalPushState = history.pushState
 history.pushState = function (...args) {
   const r = originalPushState.apply(this, args)
@@ -191,15 +211,43 @@ history.replaceState = function (...args) {
 window.addEventListener('popstate', onUrlChange)
 
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Alt') {
+  const key = e.key.toLowerCase()
+
+  // Toggle Nav Mode
+  if (key === 'alt') {
     e.preventDefault()
     if (mode === Mode.NORMAL) enableNavMode()
     else disableNavMode()
+    return
   }
 
-  // Block page keybindings in Nav Mode
-  if (mode === Mode.NAV) {
-    e.stopImmediatePropagation()
+  // Ignore everything in NORMAL mode
+  if (mode === Mode.NORMAL) return
+
+  // Prevent site keybindings in NAV mode
+  e.stopImmediatePropagation()
+  e.preventDefault()
+
+  // Accept only a–z as hint characters
+  if (!/^[a-z]$/.test(key)) return
+
+  // Build typed hint
+  currentTypedHint += key
+
+  // Match?
+  const el = hintMap.get(currentTypedHint)
+  if (el) {
+    currentTypedHint = ''
+    simulateClick(el)
+    return
+  }
+
+  // If no hint starts with this prefix, reset
+  const hasPrefix = Array.from(hintMap.keys()).some((h) =>
+    h.startsWith(currentTypedHint),
+  )
+  if (!hasPrefix) {
+    currentTypedHint = ''
   }
 })
 
