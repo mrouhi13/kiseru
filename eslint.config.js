@@ -29,6 +29,7 @@ export default [
         requestAnimationFrame: 'readonly',
         cancelAnimationFrame: 'readonly',
         history: 'readonly',
+        chrome: 'readonly',
       },
     },
     plugins: {

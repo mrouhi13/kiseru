@@ -1,6 +1,8 @@
 import { detectClickables } from './detector'
-import { hideOverlays, renderOverlays, showOverlays } from './overlay'
 import { assignHints } from './hints'
+import { hideOverlays, renderOverlays, showOverlays } from './overlay'
+import type { BackgroundMessage } from '../types/messages'
+import { ScrollManager } from './scrollManager'
 
 const UPDATE_DELAY = 120
 
@@ -13,21 +15,71 @@ let mode: Mode = Mode.NAV
 let hintMode = false
 let currentTypedHint = ''
 let hintMap: Map<string, HTMLElement> = new Map()
-
 let lastUrl = location.href
-let updateTimeout: number | null = null
-let scrollTimeout: number | null = null
-let isOverlayUpdating = false
-let mutationPending = false
-let scrollListenersAttached = false
-let scrollableElements: HTMLElement[] = []
 
-function enableNavMode() {
+// Overlay update control
+let updatePending = false
+let mutationPending = false
+
+// Scroll manager instance
+const scrollManager = new ScrollManager(UPDATE_DELAY, () => {
+  updateOverlays()
+  showOverlays()
+})
+
+// MutationObserver
+const observer = new MutationObserver((mutations) => {
+  if (mode === Mode.NORMAL) return
+  if (updatePending || mutationPending) return
+
+  const root = document.getElementById('k-overlay-root')
+  if (!root) return
+
+  // Skip overlay-internal mutations
+  for (const m of mutations) {
+    if (m.target === root || root.contains(m.target)) {
+      return
+    }
+  }
+
+  mutationPending = true
+  requestAnimationFrame(() => {
+    mutationPending = false
+    scheduleUpdate()
+  })
+})
+
+function scheduleUpdate(): void {
+  if (updatePending) return
+  updatePending = true
+
+  requestAnimationFrame(() => {
+    updatePending = false
+    updateOverlays()
+  })
+}
+
+/**
+ * Main update function: detect → assign hints → render.
+ */
+function updateOverlays(): void {
+  if (mode === Mode.NORMAL) return
+
+  const clickables = assignHints(detectClickables())
+
+  hintMap.clear()
+  for (const c of clickables) {
+    hintMap.set(c.hint, c.element)
+  }
+
+  renderOverlays(clickables)
+}
+
+function enableNavMode(): void {
   if (mode === Mode.NAV) return
   mode = Mode.NAV
 
-  scrollListenersAttached = false
-  attachScrollListeners()
+  scrollManager.attach()
   observer.observe(document.body, { childList: true, subtree: true })
 
   requestAnimationFrame(() => {
@@ -36,151 +88,65 @@ function enableNavMode() {
   })
 }
 
-function disableNavMode() {
+function disableNavMode(): void {
   if (mode === Mode.NORMAL) return
   mode = Mode.NORMAL
 
-  detachScrollListeners()
+  scrollManager.detach()
   observer.disconnect()
 
-  if (scrollTimeout) clearTimeout(scrollTimeout)
-  if (updateTimeout) clearTimeout(updateTimeout)
-
-  mutationPending = false
-  isOverlayUpdating = false
-
-  hideOverlays()
-}
-
-function debouncedUpdate(): void {
-  if (updateTimeout) clearTimeout(updateTimeout)
-  updateTimeout = window.setTimeout(updateOverlays, UPDATE_DELAY)
-}
-
-function updateOverlays(): void {
-  if (mode === Mode.NORMAL) return
-
-  isOverlayUpdating = true
-  const clickables = assignHints(detectClickables())
-
+  currentTypedHint = ''
+  hintMode = false
   hintMap.clear()
-  for (const c of clickables) hintMap.set(c.hint, c.element)
-
-  renderOverlays(clickables)
-  requestAnimationFrame(() => (isOverlayUpdating = false))
-}
-
-// Initial render (no overlays shown until Nav Mode is ON)
-updateOverlays()
-
-function handleScroll() {
-  if (mode === Mode.NORMAL) return
 
   hideOverlays()
-
-  if (scrollTimeout) clearTimeout(scrollTimeout)
-
-  scrollTimeout = window.setTimeout(() => {
-    if (mode === Mode.NORMAL) return
-
-    const clickables = assignHints(
-      detectClickables().filter((c) => {
-        const top = c.rect.top
-        const bottom = c.rect.bottom
-        return bottom >= 0 && top <= window.innerHeight
-      }),
-    )
-
-    hintMap.clear()
-    for (const c of clickables) hintMap.set(c.hint, c.element)
-
-    renderOverlays(clickables)
-    requestAnimationFrame(showOverlays)
-  }, UPDATE_DELAY)
 }
 
-function attachScrollListeners() {
-  if (scrollListenersAttached) return
-  scrollListenersAttached = true
-
-  window.addEventListener('scroll', handleScroll, { passive: true })
-  document.addEventListener('scroll', handleScroll, { passive: true })
-
-  scrollableElements = []
-
-  const candidates = document.querySelectorAll<HTMLElement>(
-    'div, main, section, [style*="overflow"], [style*="scroll"]',
-  )
-
-  candidates.forEach((el) => {
-    const style = window.getComputedStyle(el)
-    if (
-      /(auto|scroll)/.test(style.overflow) ||
-      /(auto|scroll)/.test(style.overflowY)
-    ) {
-      el.addEventListener('scroll', handleScroll, { passive: true })
-      scrollableElements.push(el)
-    }
-  })
+function toggleHintMode(): void {
+  hintMode = !hintMode
+  currentTypedHint = ''
 }
 
-// NEW: detach scroll listeners when NAV mode is off
-function detachScrollListeners() {
-  window.removeEventListener('scroll', handleScroll)
-  document.removeEventListener('scroll', handleScroll)
+function onUrlChange(): void {
+  if (location.href === lastUrl) return
+  lastUrl = location.href
 
-  for (const el of scrollableElements) {
-    el.removeEventListener('scroll', handleScroll)
-  }
-
-  scrollListenersAttached = false
-  scrollableElements = []
-}
-
-// Attach listeners after page loads (only matters once)
-setTimeout(attachScrollListeners, UPDATE_DELAY)
-
-// MutationObserver (throttled)
-const observer = new MutationObserver((mutations) => {
   if (mode === Mode.NORMAL) return
-  if (isOverlayUpdating || mutationPending) return
 
-  const root = document.getElementById('k-overlay-root')
-  if (!root) return
-
-  for (const m of mutations) {
-    if (m.target === root || root.contains(m.target)) return
-  }
-
-  mutationPending = true
-  requestAnimationFrame(() => {
-    mutationPending = false
-    debouncedUpdate()
-  })
-})
-
-observer.observe(document.body, { childList: true, subtree: true })
-
-// URL change detection (no polling)
-function onUrlChange() {
-  if (location.href !== lastUrl) {
-    lastUrl = location.href
-
-    if (mode === Mode.NORMAL) return
-
-    debouncedUpdate()
-    scrollListenersAttached = false
-    setTimeout(attachScrollListeners, UPDATE_DELAY) // reattach for new pages/components
-  }
+  scheduleUpdate()
+  scrollManager.refresh()
 }
 
-function simulateClick(el: HTMLElement) {
-  el.focus()
+// Monkey-patch history methods
+const originalPush = history.pushState
+history.pushState = function (...args) {
+  const r = originalPush.apply(this, args)
+  onUrlChange()
+  return r
+}
+
+const originalReplace = history.replaceState
+history.replaceState = function (...args) {
+  const r = originalReplace.apply(this, args)
+  onUrlChange()
+  return r
+}
+
+window.addEventListener('popstate', onUrlChange)
+
+function simulateClick(el: HTMLElement): void {
+  // Native click() handles most cases elegantly
+  // Use synthesized events as fallback for custom widgets
+  if ('click' in el) {
+    el.click()
+    return
+  }
+
   const rect = el.getBoundingClientRect()
   const x = rect.left + rect.width / 2
   const y = rect.top + rect.height / 2
 
-  for (const type of ['mousedown', 'mouseup', 'click']) {
+  for (const type of ['mousedown', 'mouseup', 'click'] as const) {
     el.dispatchEvent(
       new MouseEvent(type, {
         bubbles: true,
@@ -193,112 +159,80 @@ function simulateClick(el: HTMLElement) {
   }
 }
 
-function enterHintMode() {
-  if (!hintMode) {
-    hintMode = true
-    currentTypedHint = ''
-  }
-}
-
-function exitHintMode() {
-  if (hintMode) {
-    hintMode = false
-    currentTypedHint = ''
-  }
-}
-
-const originalPushState = history.pushState
-history.pushState = function (...args) {
-  const r = originalPushState.apply(this, args)
-  onUrlChange()
-  return r
-}
-
-const originalReplaceState = history.replaceState
-history.replaceState = function (...args) {
-  const r = originalReplaceState.apply(this, args)
-  onUrlChange()
-  return r
-}
-
-window.addEventListener('popstate', onUrlChange)
-
 window.addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase()
 
-  // Toggle Nav Mode
+  // Toggle overall NAV mode
   if (key === 'alt') {
     e.preventDefault()
-    if (mode === Mode.NORMAL) enableNavMode()
-    else disableNavMode()
+    if (mode === Mode.NORMAL) {
+      enableNavMode()
+    } else {
+      disableNavMode()
+    }
     return
   }
 
-  // Ignore everything in NORMAL mode
   if (mode === Mode.NORMAL) return
 
-  // Prevent site keybindings in NAV mode
+  // Block site shortcuts
   e.stopImmediatePropagation()
   e.preventDefault()
 
-  // Enter Hint Mode
-  if (key === 'f') {
-    enterHintMode()
-    return
-  }
-
-  // Escape exits Hint Mode
+  // Escape toggles hint mode
   if (key === 'escape') {
-    exitHintMode()
+    toggleHintMode()
     return
   }
 
-  // 🔥 NAV MODE KEYBINDINGS (ONLY WHEN NOT IN HINT MODE)
-  if (mode === Mode.NAV && !hintMode) {
+  if (!hintMode) {
     switch (key) {
       case ' ':
-        if (e.shiftKey) {
-          window.scrollBy({
-            top: -window.innerHeight * 0.8,
-            behavior: 'smooth',
-          })
-          return
-        }
-        // Smooth scroll UP (Shift + Space)
-        window.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' })
+        window.scrollBy({
+          top: e.shiftKey
+            ? -window.innerHeight * 0.8
+            : window.innerHeight * 0.8,
+          behavior: 'smooth',
+        })
         return
+
       case 'h':
-        sendBackground('GO_HOME')
+        sendToBackground({ type: 'GO_HOME' })
         return
+
       case 't':
-        sendBackground('NEW_TAB')
+        sendToBackground({ type: 'NEW_TAB' })
         return
+
       case 'q':
-        if (e.shiftKey) sendBackground('UNDO_CLOSE_TAB')
-        else sendBackground('CLOSE_TAB')
+        sendToBackground({
+          type: e.shiftKey ? 'UNDO_CLOSE_TAB' : 'CLOSE_TAB',
+        })
         return
+
       case '<':
-        sendBackground('GO_BACK')
+        sendToBackground({ type: 'GO_BACK' })
         return
+
       case '>':
-        sendBackground('GO_FORWARD')
+        sendToBackground({ type: 'GO_FORWARD' })
         return
+
       case 'r':
-        sendBackground('RELOAD_TAB')
+        sendToBackground({ type: 'RELOAD_TAB' })
         return
+
       case '[':
-        sendBackground('PREV_TAB')
+        sendToBackground({ type: 'PREV_TAB' })
         return
+
       case ']':
-        sendBackground('NEXT_TAB')
+        sendToBackground({ type: 'NEXT_TAB' })
         return
     }
   }
 
-  // 🔥 HINT TYPING ONLY WHEN hintMode ACTIVE
   if (!hintMode) return
-
-  // Accept only A–Z for hint typing
   if (!/^[a-z]$/.test(key)) return
 
   currentTypedHint += key
@@ -311,12 +245,8 @@ window.addEventListener('keydown', (e) => {
 
     currentTypedHint = ''
 
-    if (ctrl) {
-      if (href) window.open(href, '_blank')
-      else {
-        const dataHref = el.getAttribute('data-href')
-        if (dataHref) window.open(dataHref, '_blank')
-      }
+    if (ctrl && href) {
+      window.open(href, '_blank')
     } else {
       simulateClick(el)
     }
@@ -324,23 +254,29 @@ window.addEventListener('keydown', (e) => {
     return
   }
 
+  // If no prefix matches, reset typed hint
   const hasPrefix = Array.from(hintMap.keys()).some((h) =>
     h.startsWith(currentTypedHint),
   )
+
   if (!hasPrefix) currentTypedHint = ''
 })
 
+// Prevent focus changes while in NAV mode
 window.addEventListener(
   'focusin',
   (e) => {
     if (mode === Mode.NAV) {
-      e.stopImmediatePropagation()
       e.preventDefault()
+      e.stopImmediatePropagation()
     }
   },
   true,
 )
 
-function sendBackground(type: string) {
-  chrome.runtime.sendMessage({ type })
+function sendToBackground(msg: BackgroundMessage): void {
+  chrome.runtime.sendMessage(msg)
 }
+
+// Initial overlay compute (in case page loads partially)
+scheduleUpdate()

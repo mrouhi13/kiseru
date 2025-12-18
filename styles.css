@@ -1,11 +1,5 @@
 :root {
-  --kiseru-accent: red;
-}
-
-@font-face {
-  font-family: 'JetBrainsMono';
-  src: url("chrome-extension://__MSG_@@extension_id__/fonts/jetbrainsmono.woff2") format("woff2");
-  font-display: swap;
+  --kiseru-accent: green;
 }
 
 #k-overlay-root {
@@ -44,5 +38,5 @@
   border-radius: 3px;
   pointer-events: none;
   z-index: 2147483648;
-  font-family: 'JetBrainsMonoNF', monospace;
+  font-family: monospace;
 }

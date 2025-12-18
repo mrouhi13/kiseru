@@ -2,29 +2,45 @@ import type { ClickableElement } from '../types/clickable'
 
 const OVERLAY_ROOT_ID = 'k-overlay-root'
 
+/**
+ * Get (or lazily create) the root container for overlays.
+ */
 export function getOverlayRoot(): HTMLElement {
-  let root = document.getElementById(OVERLAY_ROOT_ID)
+  let root = document.getElementById(OVERLAY_ROOT_ID) as HTMLElement | null
+
   if (!root) {
     root = document.createElement('div')
     root.id = OVERLAY_ROOT_ID
-    root.style.position = 'fixed'
-    root.style.top = '0'
-    root.style.left = '0'
-    root.style.width = '100vw'
-    root.style.height = '100vh'
-    root.style.pointerEvents = 'none'
-    root.style.zIndex = '2147483647'
-    root.style.opacity = '1'
-    root.style.transition = 'opacity 0.2s ease'
+
+    Object.assign(root.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100vw',
+      height: '100vh',
+      pointerEvents: 'none',
+      zIndex: '2147483647',
+      opacity: '1',
+      transition: 'opacity 0.2s ease',
+    })
+
     document.body.appendChild(root)
   }
   return root
 }
 
+/**
+ * Remove all overlay nodes.
+ * Avoids replacing the root itself (for stability).
+ */
 export function clearOverlays(): void {
   getOverlayRoot().innerHTML = ''
 }
 
+/**
+ * Render styled overlay boxes with hint labels.
+ * Uses fragment batching for maximum performance.
+ */
 export function renderOverlays(
   items: Array<ClickableElement & { hint: string }>,
 ): void {
@@ -34,20 +50,23 @@ export function renderOverlays(
   const fragment = document.createDocumentFragment()
 
   for (const { rect, hint } of items) {
-    const overlay = document.createElement('div')
-    overlay.className = 'k-overlay'
-    overlay.style.position = 'fixed'
-    overlay.style.top = `${rect.top}px`
-    overlay.style.left = `${rect.left}px`
-    overlay.style.width = `${rect.width}px`
-    overlay.style.height = `${rect.height}px`
+    const box = document.createElement('div')
+    box.className = 'k-overlay'
+
+    Object.assign(box.style, {
+      position: 'fixed',
+      top: `${rect.top}px`,
+      left: `${rect.left}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+    })
 
     const badge = document.createElement('div')
     badge.className = 'k-hint-badge'
     badge.textContent = hint
 
-    overlay.appendChild(badge)
-    fragment.appendChild(overlay)
+    box.appendChild(badge)
+    fragment.appendChild(box)
   }
 
   root.appendChild(fragment)

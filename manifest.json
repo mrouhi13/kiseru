@@ -4,7 +4,7 @@
   "homepage_url": "https://github.com/mrouhi13/kiseru",
   "version": "1.0",
   "manifest_version": 3,
-  "permissions": ["tabs", "sessions", "history"],
+  "permissions": ["tabs", "sessions"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "scripts/background.js"
@@ -21,7 +21,7 @@
   "web_accessible_resources": [
     {
       "resources": ["fonts/jetbrainsmono.woff2"],
-      "matches": ["<all_urls>"]
+      "matches": ["*://*/*"]
     }
   ]
 }
