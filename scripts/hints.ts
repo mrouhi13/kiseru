@@ -4,7 +4,7 @@ import type { ImmutableRect } from '../types/clickable'
  * Characters used in hint generation.
  * You can change these to any set (e.g., home-row only).
  */
-const HINT_CHARS = 'abcdefghijklmnopqrstuvwxyz' as const
+export const HINT_CHARS = 'qwertypoiuasdfglkjhmnbvcz' as const
 const BASE = HINT_CHARS.length
 
 /**
@@ -14,13 +14,16 @@ const BASE = HINT_CHARS.length
 export function indexToHint(index: number): string {
   let hint = ''
 
-  while (index >= 0 || hint.length < 2) {
-    const mod = ((index % BASE) + BASE) % BASE
+  // produce at least 2 characters by construction
+  index += BASE // shift index so smallest value produces 2 digits
+
+  while (index >= BASE) {
+    const mod = index % BASE
     hint = HINT_CHARS[mod] + hint
     index = Math.floor(index / BASE) - 1
   }
 
-  return hint
+  return HINT_CHARS[index] + hint
 }
 
 /**
