@@ -26,6 +26,7 @@ export class ScrollManager {
   constructor(
     private readonly delay: number,
     private readonly onScrollUpdate: ScrollCallback,
+    private readonly onScrollStart: () => void,
   ) {}
 
   /**
@@ -50,6 +51,7 @@ export class ScrollManager {
    * Internal scroll handler shared by window, document, and scrollable elements.
    */
   private handleScroll = (): void => {
+    this.onScrollStart()
     this.triggerThrottledUpdate()
   }
 
@@ -58,7 +60,8 @@ export class ScrollManager {
    */
   private detectScrollableElements(): HTMLElement[] {
     const results: HTMLElement[] = []
-    const selector = 'div, main, section, [style*="overflow"], [style*="scroll"]'
+    const selector =
+      'div, main, section, [style*="overflow"], [style*="scroll"]'
 
     const candidates = document.querySelectorAll<HTMLElement>(selector)
 
@@ -84,7 +87,6 @@ export class ScrollManager {
     this.state.attached = true
 
     window.addEventListener('scroll', this.handleScroll, { passive: true })
-    document.addEventListener('scroll', this.handleScroll, { passive: true })
 
     const scrollables = this.detectScrollableElements()
     this.state.scrollables = scrollables
