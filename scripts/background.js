@@ -2,9 +2,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || !msg.type) return
 
   switch (msg.type) {
-    case 'NEW_TAB':
-      chrome.tabs.create({})
-      break
     case 'CLOSE_TAB':
       chrome.tabs.remove(sender.tab.id)
       break
@@ -20,9 +17,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       break
     case 'GO_FORWARD':
       chrome.tabs.goForward(sender.tab.id)
-      break
-    case 'RELOAD_TAB':
-      chrome.tabs.reload(sender.tab.id)
       break
     case 'NEXT_TAB':
       chrome.tabs.query({ currentWindow: true }, (tabs) => {
