@@ -1,45 +1,40 @@
 import { detectClickables } from './detector'
-import { assignHints } from './hints'
+import { assignHints, HINT_CHARS } from './hints'
 import { hideOverlays, renderOverlays, showOverlays } from './overlay'
 import type { BackgroundMessage } from '../types/messages'
 import { ScrollManager } from './scrollManager'
 
 const UPDATE_DELAY = 120
+const TOGGLE_KEY = ';'
 
 enum Mode {
   NORMAL = 'normal',
   NAV = 'nav',
 }
 
-let mode: Mode = Mode.NAV
-let hintMode = false
+let mode: Mode = Mode.NORMAL
 let currentTypedHint = ''
-let hintMap: Map<string, HTMLElement> = new Map()
-let lastUrl = location.href
-
-// Overlay update control
+let hintMap = new Map<string, HTMLElement>()
 let updatePending = false
 let mutationPending = false
 
-// Scroll manager instance
-const scrollManager = new ScrollManager(UPDATE_DELAY, () => {
-  updateOverlays()
-  showOverlays()
-})
+const scrollManager = new ScrollManager(
+  UPDATE_DELAY,
+  () => {
+    updateOverlays()
+    showOverlays()
+  },
+  hideOverlays,
+)
 
-// MutationObserver
 const observer = new MutationObserver((mutations) => {
-  if (mode === Mode.NORMAL) return
-  if (updatePending || mutationPending) return
+  if (mode === Mode.NORMAL || mutationPending) return
 
   const root = document.getElementById('k-overlay-root')
   if (!root) return
 
-  // Skip overlay-internal mutations
   for (const m of mutations) {
-    if (m.target === root || root.contains(m.target)) {
-      return
-    }
+    if (root.contains(m.target as Node)) return
   }
 
   mutationPending = true
@@ -52,32 +47,25 @@ const observer = new MutationObserver((mutations) => {
 function scheduleUpdate(): void {
   if (updatePending) return
   updatePending = true
-
   requestAnimationFrame(() => {
     updatePending = false
     updateOverlays()
   })
 }
 
-/**
- * Main update function: detect → assign hints → render.
- */
 function updateOverlays(): void {
   if (mode === Mode.NORMAL) return
 
-  const clickables = assignHints(detectClickables())
-
+  const clickables = assignHints(detectClickables(document.body))
   hintMap.clear()
-  for (const c of clickables) {
-    hintMap.set(c.hint, c.element)
-  }
+  for (const c of clickables) hintMap.set(c.hint, c.element)
 
   renderOverlays(clickables)
 }
 
 function enableNavMode(): void {
-  if (mode === Mode.NAV) return
   mode = Mode.NAV
+  currentTypedHint = ''
 
   scrollManager.attach()
   observer.observe(document.body, { childList: true, subtree: true })
@@ -89,54 +77,24 @@ function enableNavMode(): void {
 }
 
 function disableNavMode(): void {
-  if (mode === Mode.NORMAL) return
   mode = Mode.NORMAL
+  currentTypedHint = ''
 
   scrollManager.detach()
   observer.disconnect()
-
-  currentTypedHint = ''
-  hintMode = false
   hintMap.clear()
-
   hideOverlays()
 }
 
-function toggleHintMode(): void {
-  hintMode = !hintMode
-  currentTypedHint = ''
+function toggleNavMode(): void {
+  if (mode === Mode.NORMAL) {
+    enableNavMode()
+  } else {
+    disableNavMode()
+  }
 }
-
-function onUrlChange(): void {
-  if (location.href === lastUrl) return
-  lastUrl = location.href
-
-  if (mode === Mode.NORMAL) return
-
-  scheduleUpdate()
-  scrollManager.refresh()
-}
-
-// Monkey-patch history methods
-const originalPush = history.pushState
-history.pushState = function (...args) {
-  const r = originalPush.apply(this, args)
-  onUrlChange()
-  return r
-}
-
-const originalReplace = history.replaceState
-history.replaceState = function (...args) {
-  const r = originalReplace.apply(this, args)
-  onUrlChange()
-  return r
-}
-
-window.addEventListener('popstate', onUrlChange)
 
 function simulateClick(el: HTMLElement): void {
-  // Native click() handles most cases elegantly
-  // Use synthesized events as fallback for custom widgets
   if ('click' in el) {
     el.click()
     return
@@ -146,123 +104,140 @@ function simulateClick(el: HTMLElement): void {
   const x = rect.left + rect.width / 2
   const y = rect.top + rect.height / 2
 
-  for (const type of ['mousedown', 'mouseup', 'click'] as const) {
-    el.dispatchEvent(
-      new MouseEvent(type, {
-        bubbles: true,
-        cancelable: true,
-        clientX: x,
-        clientY: y,
-        view: window,
-      }),
-    )
+  el.dispatchEvent(
+    new PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+    }),
+  )
+  el.dispatchEvent(
+    new PointerEvent('pointerup', {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+    }),
+  )
+  el.dispatchEvent(
+    new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+    }),
+  )
+}
+
+function sendToBackground(msg: BackgroundMessage): void {
+  chrome.runtime.sendMessage(msg)
+}
+
+function isEditable(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  )
+}
+
+function handleNavCommand(key: string, e: KeyboardEvent): boolean {
+  switch (key) {
+    case ' ':
+      window.scrollBy({
+        top: e.shiftKey ? -window.innerHeight * 0.8 : window.innerHeight * 0.8,
+        behavior: 'smooth',
+      })
+      return true
+    case 'h':
+      if (e.shiftKey) {
+        sendToBackground({ type: 'GO_HOME' })
+        return true
+      }
+      break
+    case 'x':
+      sendToBackground({ type: e.shiftKey ? 'UNDO_CLOSE_TAB' : 'CLOSE_TAB' })
+      return true
+    case '<':
+      sendToBackground({ type: 'GO_BACK' })
+      return true
+    case '>':
+      sendToBackground({ type: 'GO_FORWARD' })
+      return true
+    case '[':
+      sendToBackground({ type: 'PREV_TAB' })
+      return true
+    case ']':
+      sendToBackground({ type: 'NEXT_TAB' })
+      return true
+    default:
+      return false
   }
 }
 
-window.addEventListener('keydown', (e) => {
-  const key = e.key.toLowerCase()
+window.addEventListener(
+  'keydown',
+  (e) => {
+    const key = e.key.toLowerCase()
 
-  // Toggle overall NAV mode
-  if (key === 'alt') {
-    e.preventDefault()
-    if (mode === Mode.NORMAL) {
-      enableNavMode()
-    } else {
+    if (key === 'escape') {
       disableNavMode()
-    }
-    return
-  }
-
-  if (mode === Mode.NORMAL) return
-
-  // Block site shortcuts
-  e.stopImmediatePropagation()
-  e.preventDefault()
-
-  // Escape toggles hint mode
-  if (key === 'escape') {
-    toggleHintMode()
-    return
-  }
-
-  if (!hintMode) {
-    switch (key) {
-      case ' ':
-        window.scrollBy({
-          top: e.shiftKey
-            ? -window.innerHeight * 0.8
-            : window.innerHeight * 0.8,
-          behavior: 'smooth',
-        })
-        return
-
-      case 'h':
-        sendToBackground({ type: 'GO_HOME' })
-        return
-
-      case 't':
-        sendToBackground({ type: 'NEW_TAB' })
-        return
-
-      case 'q':
-        sendToBackground({
-          type: e.shiftKey ? 'UNDO_CLOSE_TAB' : 'CLOSE_TAB',
-        })
-        return
-
-      case '<':
-        sendToBackground({ type: 'GO_BACK' })
-        return
-
-      case '>':
-        sendToBackground({ type: 'GO_FORWARD' })
-        return
-
-      case 'r':
-        sendToBackground({ type: 'RELOAD_TAB' })
-        return
-
-      case '[':
-        sendToBackground({ type: 'PREV_TAB' })
-        return
-
-      case ']':
-        sendToBackground({ type: 'NEXT_TAB' })
-        return
-    }
-  }
-
-  if (!hintMode) return
-  if (!/^[a-z]$/.test(key)) return
-
-  currentTypedHint += key
-
-  const el = hintMap.get(currentTypedHint)
-  if (el) {
-    const href =
-      el instanceof HTMLAnchorElement ? el.href : el.getAttribute('href')
-    const ctrl = e.ctrlKey || e.metaKey
-
-    currentTypedHint = ''
-
-    if (ctrl && href) {
-      window.open(href, '_blank')
-    } else {
-      simulateClick(el)
+      return
     }
 
-    return
-  }
+    if (key === TOGGLE_KEY) {
+      if (mode === Mode.NORMAL && isEditable(e.target)) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      toggleNavMode()
+      return
+    }
 
-  // If no prefix matches, reset typed hint
-  const hasPrefix = Array.from(hintMap.keys()).some((h) =>
-    h.startsWith(currentTypedHint),
-  )
+    if (mode === Mode.NORMAL) return
 
-  if (!hasPrefix) currentTypedHint = ''
-})
+    e.preventDefault()
+    e.stopImmediatePropagation()
 
-// Prevent focus changes while in NAV mode
+    if (handleNavCommand(key, e)) return
+
+    if (!HINT_CHARS.includes(key)) return
+
+    currentTypedHint += key
+    const el = hintMap.get(currentTypedHint)
+    if (el) {
+      currentTypedHint = ''
+
+      if (
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        el.isContentEditable
+      ) {
+        el.focus()
+        return
+      }
+
+      const href =
+        el instanceof HTMLAnchorElement ? el.href : el.getAttribute('href')
+      const ctrl = e.ctrlKey || e.metaKey
+
+      if (href && ctrl) {
+        window.open(href, '_blank')
+      } else {
+        simulateClick(el)
+      }
+
+      return
+    }
+
+    const hasPrefix = Array.from(hintMap.keys()).some((h) =>
+      h.startsWith(currentTypedHint),
+    )
+    if (!hasPrefix) currentTypedHint = ''
+  },
+  { capture: true },
+)
+
 window.addEventListener(
   'focusin',
   (e) => {
@@ -273,10 +248,3 @@ window.addEventListener(
   },
   true,
 )
-
-function sendToBackground(msg: BackgroundMessage): void {
-  chrome.runtime.sendMessage(msg)
-}
-
-// Initial overlay compute (in case page loads partially)
-scheduleUpdate()
