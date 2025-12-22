@@ -55,10 +55,10 @@ export function renderOverlays(
 
     Object.assign(box.style, {
       position: 'fixed',
-      top: `${rect.top}px`,
-      left: `${rect.left}px`,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`,
+      top: `${rect.top + 2}px`,
+      left: `${rect.left + 2}px`,
+      width: `${rect.width - 4}px`,
+      height: `${rect.height - 4}px`,
     })
 
     const badge = document.createElement('div')
