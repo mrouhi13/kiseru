@@ -1,10 +1,16 @@
+:root {
+  --kiseru-accent: green;
+}
+
 #k-overlay-root {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   pointer-events: none;
   opacity: 1;
-  transition: opacity 0.18s ease-out;
-  z-index: 2147483647;
+  transition: opacity 0.2s ease;
 }
 
 #k-overlay-root.k-overlay-hidden {
@@ -14,27 +20,23 @@
 .k-overlay {
   position: fixed;
   box-sizing: border-box;
-  backdrop-filter: blur(10px);
-  background-color: rgba(255, 255, 255, 0.09);
+  border: 2px dashed var(--kiseru-accent);
   border-radius: 6px;
+  background-color: rgba(255, 0, 0, 0.1);
   pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
-}
-
-#k-overlay-root.k-overlay-hidden .k-overlay {
-  opacity: 0;
-  transform: scale(0.97);
 }
 
 .k-hint-badge {
-  padding: 4px 8px;
-  font-size: 13px;
-  font-weight: 700;
-  font-family: monospace;
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  background: var(--kiseru-accent);
+  color: #fff;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
   pointer-events: none;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5),
-  0 0 2px rgba(0, 0, 0, 0.4);
+  z-index: 2147483648;
+  font-family: monospace;
 }
