@@ -86,14 +86,6 @@ function disableNavMode(): void {
   hideOverlays()
 }
 
-function toggleNavMode(): void {
-  if (mode === Mode.NORMAL) {
-    enableNavMode()
-  } else {
-    disableNavMode()
-  }
-}
-
 function simulateClick(el: HTMLElement): void {
   if ('click' in el) {
     el.click()
@@ -190,7 +182,7 @@ window.addEventListener(
       if (mode === Mode.NORMAL && isEditable(e.target)) return
       e.preventDefault()
       e.stopImmediatePropagation()
-      toggleNavMode()
+      enableNavMode()
       return
     }
 
@@ -234,6 +226,22 @@ window.addEventListener(
       h.startsWith(currentTypedHint),
     )
     if (!hasPrefix) currentTypedHint = ''
+  },
+  { capture: true },
+)
+
+window.addEventListener(
+  'keyup',
+  (e) => {
+    const key = e.key.toLowerCase()
+
+    if (key === TOGGLE_KEY) {
+      if (mode === Mode.NORMAL && isEditable(e.target)) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+      disableNavMode()
+      return
+    }
   },
   { capture: true },
 )
