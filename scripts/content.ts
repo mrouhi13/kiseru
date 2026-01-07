@@ -136,12 +136,6 @@ function isEditable(target: EventTarget | null): boolean {
 
 function handleNavCommand(key: string, e: KeyboardEvent): boolean {
   switch (key) {
-    case ' ':
-      window.scrollBy({
-        top: e.shiftKey ? -window.innerHeight * 0.8 : window.innerHeight * 0.8,
-        behavior: 'smooth',
-      })
-      return true
     case 'h':
       if (e.shiftKey) {
         sendToBackground({ type: 'GO_HOME' })
